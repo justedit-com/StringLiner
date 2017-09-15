@@ -1,0 +1,254 @@
+<!doctype html>
+<html>
+<head>
+<title>StringLiner</title>
+
+<style>
+* {
+	box-sizing: border-box;
+}
+
+html, body {
+	height: 100%;
+	min-width: 100%;
+	margin: 0;
+	padding: 0;
+	font-family: sans-serif;
+}
+
+body {
+	display: flex;
+}
+
+textarea {
+	height: 100%;
+	flex: 1;
+	padding: 10px;
+	border: 0;
+}
+
+fieldset {
+	margin-top: 5px;
+}
+
+.options {
+	padding: 10px;
+	background: #eee;
+	font-size: 0.85rem;
+	line-height: 1.5;
+}
+
+section {
+	display: flex;
+	align-items: middle;
+}
+
+input[type="checkbox"] {
+	margin-top: 0.2rem;
+}
+</style>
+
+</head>
+<body>
+	<div class="options">
+		<section>
+			<input type="checkbox" checked id="preserveLineBreaks" name="preserveLineBreaks">
+			<label for="preserveLineBreaks">Preserve line breaks</label>
+		</section>
+		<section>
+			<input type="checkbox" id="trimLines" name="trimLines">
+			<label for="trimLines">Trim lines</label>
+		</section>
+		<section>
+			<input type="checkbox" id="useOriginalIndent" name="useOriginalIndent">
+			<label for="useOriginalIndent">Use original indent</label>
+		</section>
+		<fieldset>
+			<legend>Double quotes</legend>
+			<section>
+				<input type="radio" id="escapeDoubleQuotes" name="doubleQuotesTreatment" checked>
+				<label for="escapeDoubleQuotes">Escape</label>
+			</section>
+			<section>
+				<input type="radio" id="replaceDoubleQuotes" name="doubleQuotesTreatment">
+				<label for="replaceDoubleQuotes">Replace with single quotes</label>
+			</section>
+		</fieldset>
+		<fieldset>
+			<legend>Concat symbol</legend>
+			<section>
+				<input type="radio" id="concatSymbolPlus" name="concatSymbol" checked>
+				<label for="concatSymbolPlus">+ (most languages)</label>
+			</section>
+			<section>
+				<input type="radio" id="concatSymbolDot" name="concatSymbol">
+				<label for="concatSymbolDot">. (PHP)</label>
+			</section>
+		</fieldset>
+		<section style="justify-content: center; margin-top: 10px">
+			<button>Copy to clipboard</button>
+		</section>
+	</div>
+	<textarea placeholder="Paste your code here..."></textarea>
+	<script>
+		function deserializeOptions(){
+			var optionsJson = localStorage.getItem("options");
+			var options = JSON.parse(optionsJson);
+			for(key in options){
+				document.getElementById(key).checked = true;
+			}
+		}
+		deserializeOptions();
+	
+	
+	
+	
+		var textarea = document.querySelector("textarea");
+
+		var clickables = document.querySelectorAll("input,label");
+		for (var i = 0; i < clickables.length; i++) {
+			clickables[i].onclick = process;
+		}
+
+		function escapeEscapeSequences(value) {
+			var res = "";
+			for (var i = 0; i < value.length; i++) {
+				var c = value.charAt(i);
+				switch (c) {
+				case '\\':
+				case '"':
+					res += ('\\');
+					res += (c);
+					break;
+				case '\b':
+					res += ("\\b");
+					break;
+				case '\t':
+					res += ("\\t");
+					break;
+				case '\n':
+					res += ("\\n");
+					break;
+				case '\f':
+					res += ("\\f");
+					break;
+				case '\r':
+					res += ("\\r");
+					break;
+				default:
+					res += (c);
+				}
+			}
+
+			return res;
+		}
+
+		function getOriginalIndent(line) {
+			var afterWhitespaceIdx;
+			for (var i = 0; i < line.length; i++) {
+				var c = line.charAt(i);
+				switch (c) {
+				case " ":
+				case "\t":
+					continue;
+				}
+				;
+
+				afterWhitespaceIdx = i;
+				break;
+			}
+
+			return line.slice(0, afterWhitespaceIdx);
+		}
+
+		function stringline(text) {
+			var preserveLineBreaks = document.getElementById("preserveLineBreaks").checked;
+			var trimLines = document.getElementById("trimLines").checked;
+			var replaceDoubleQuotes = document.getElementById("replaceDoubleQuotes").checked;
+			var useOriginalIndent = document.getElementById("useOriginalIndent").checked;
+			var concatSymbolDot = document.getElementById("concatSymbolDot").checked;
+
+			var concatSymbol = "+";
+			if (concatSymbolDot) {
+				concatSymbol = ".";
+			}
+
+			var res = text;
+			if (replaceDoubleQuotes) {
+				res = res.replace(/"/g, "'");
+			}
+
+			var lines = res.split("\n");
+
+			res = "";
+			for (var i = 0; i < lines.length; i++) {
+				var line = lines[i];
+
+				if (useOriginalIndent) {
+					res += getOriginalIndent(line);
+				}
+
+				if (trimLines) {
+					line = line.trim();
+
+					if (line == "") {
+						continue;
+					}
+				}
+
+				line = escapeEscapeSequences(line);
+
+				res += "\"" + line;
+				if (preserveLineBreaks && i < lines.length - 1) {
+					res += "\\n";
+				}
+				res += "\" " + concatSymbol + " \n";
+
+			}
+
+			var lastPlusIdx = res.lastIndexOf(" " + concatSymbol);
+			res = res.substring(0, lastPlusIdx) + ";";
+
+			return res;
+		}
+
+		function serializeOptions() {
+			var obj = {};
+			var inputs = document.querySelectorAll("input");
+			for (var i = 0; i < inputs.length; i++) {
+				var input = inputs[i];
+				if(input.checked){
+					obj[input.id] = true;
+				}
+			}
+
+			var serialized = JSON.stringify(obj);
+			localStorage.setItem("options", serialized);
+		}
+		
+		
+		
+
+		var curText;
+		function process() {
+			if (curText) {
+				var res = stringline(curText);
+				textarea.value = res;
+			}
+			console.log(serializeOptions());
+		}
+
+		textarea.onpaste = function() {
+			setTimeout(function() {
+				curText = textarea.value;
+				process();
+			}, 10);
+		}
+
+		document.querySelector('button').onclick = function() {
+			textarea.select();
+			document.execCommand('copy');
+		};
+	</script>
+</body>
+</html>
